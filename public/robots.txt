@@ -1,0 +1,9 @@
+# Allow all crawlers access to the site
+User-agent: *
+Allow: /
+
+# Disallow crawlers from accessing the admin area
+Disallow: /admin
+
+# Point crawlers to the sitemap
+Sitemap: https://classicsolution.shop/sitemap.xml
