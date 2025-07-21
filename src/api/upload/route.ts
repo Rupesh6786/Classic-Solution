@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
 
     // Create a unique filename for the uploaded file
     const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const uniqueFilename = `product-images/${Date.now()}_${sanitizedFilename}`;
+    // The path within the bucket should not contain the bucket name itself.
+    const uniqueFilePath = `${Date.now()}_${sanitizedFilename}`;
     
     // The bucket name must match the one you created in your Supabase project.
     const BUCKET_NAME = 'product-images';
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Upload the file to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(uniqueFilename, buffer, {
+      .upload(uniqueFilePath, buffer, {
         contentType: file.type,
         upsert: false,
       });
