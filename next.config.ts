@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -22,6 +23,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Add your Supabase project URL hostname here
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co', // A more generic pattern that should work
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };

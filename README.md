@@ -1,69 +1,68 @@
 
 # AC-Solution Firebase Project
 
-## ⚠️ Important: How to Fix File Upload Errors
+## ⭐ New: Supabase for File Uploads!
 
-If you are seeing errors like **"Permission Denied"** or **`storage/unknown`** when uploading images in the admin panel, the problem is with your **Firebase Storage configuration**, not the application code.
+This project now uses **Supabase Storage** for handling all file and image uploads. Firebase Storage is no longer used.
 
-The `storage/unknown` error is almost always a **CORS issue**. Please follow these two steps carefully.
+### How to Configure Supabase for Uploads
 
-### Step 1: Update Firebase Storage Security Rules
+You must configure Supabase correctly for image uploads in the admin panel to work.
 
-1.  Navigate to your **Firebase Console -> Storage -> Rules** tab.
-2.  Replace the existing rules with the following to allow authenticated users to upload files:
+#### Step 1: Get Supabase Credentials
+
+1.  Go to your Supabase project dashboard.
+2.  Navigate to **Project Settings** (the gear icon).
+3.  Go to the **API** section.
+4.  You will find your **Project URL** and the `service_role` **secret key**.
+5.  Create a `.env.local` file in your project's root directory (if it doesn't exist). Add your credentials like this:
+
     ```
-    rules_version = '2';
-    service firebase.storage {
-      match /b/{bucket}/o {
-        match /{allPaths=**} {
-          // Allow read access to everyone
-          allow read: if true;
-          // Allow write access only to authenticated users
-          allow write: if request.auth != null;
-        }
-      }
-    }
+    NEXT_PUBLIC_SUPABASE_URL=YOUR_PROJECT_URL
+    SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
     ```
-3.  Click **Publish**. The changes may take a minute to take effect.
 
-### Step 2: Configure Storage CORS (Crucial for `storage/unknown` Error)
+    *   Replace `YOUR_PROJECT_URL` and `YOUR_SERVICE_ROLE_KEY` with the actual values from your Supabase dashboard.
+    *   **Important**: The `service_role` key grants admin access and should never be exposed on the client side. We only use it securely in our server-side API route.
 
-This step is essential for fixing the `storage/unknown` error. It allows your website to communicate with your storage bucket.
+#### Step 2: Create a Storage Bucket
 
-1.  **Install Google Cloud SDK:** You will need the `gsutil` command-line tool. If you don't have it, follow the [Google Cloud SDK installation guide](https://cloud.google.com/sdk/docs/install). After installation, run `gcloud auth login` to authenticate.
+1.  In your Supabase project, go to the **Storage** section (the folder icon).
+2.  Click **"New bucket"**.
+3.  Enter the bucket name as `product-images`.
+4.  Make sure to check the **"Public bucket"** option. This allows the images to be viewed on your website.
+5.  Click **"Create bucket"**.
 
-2.  **Create `cors.json` file:** Create a file named `cors.json` on your computer with this exact content:
-    ```json
-    [
-      {
-        "origin": ["*"],
-        "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-        "responseHeader": [
-          "Content-Type",
-          "Access-Control-Allow-Origin"
-        ],
-        "maxAgeSeconds": 3600
-      }
-    ]
-    ```
-    > **Note:** For production, you should replace `"*"` with your app's domain (e.g., `https://your-app-name.web.app`).
+#### Step 3: Configure Bucket Policies & CORS
 
-3.  **Find Your Bucket URL:** Find your Storage bucket URL in the **Firebase Console -> Storage -> Files tab**. It looks like `gs://your-project-id.appspot.com`.
+For uploads from your website to work, you need to set up permissions (policies) and CORS.
 
-4.  **Run the `gsutil` Command:** Open your terminal, navigate to where you saved `cors.json`, and run the following command, replacing `YOUR_BUCKET_URL` with your actual bucket URL:
-    ```bash
-    gsutil cors set cors.json YOUR_BUCKET_URL
-    ```
-    *Example: `gsutil cors set cors.json gs://classic-solution-d7a01.appspot.com`*
+1.  **CORS Configuration**:
+    *   In the Storage section, find the **"CORS configuration"** setting for your `product-images` bucket.
+    *   Set it to allow your website's domain. For development, you can use `*`, but for production, you should restrict it to your actual domain (e.g., `https://your-app.com`).
 
-After completing both steps, your file uploads should work correctly.
+2.  **Bucket Policies**:
+    *   Navigate to **Authentication -> Policies** in your Supabase dashboard.
+    *   Find the policies for your `product-images` bucket.
+    *   Create policies to allow authenticated users to perform `insert`, `select`, `update` operations. Here's an example policy for allowing inserts (uploads) for any authenticated user:
+
+        ```sql
+        -- Policy to allow authenticated users to upload to product-images
+        CREATE POLICY "Allow authenticated uploads"
+        ON storage.objects FOR INSERT
+        TO authenticated
+        WITH CHECK (bucket_id = 'product-images');
+        ```
+    *   Ensure you have policies that allow public read access (`select`) since it's a public bucket. Supabase often creates this for you by default on public buckets.
+
+After these steps, your file uploads from the admin panel should work perfectly!
 
 ---
 
 ### Project Overview
 
-This is a Next.js application for AC sales and services, using Firestore for data and Firebase Storage for file uploads.
+This is a Next.js application for AC sales and services, using **Firestore** for data and **Supabase Storage** for file uploads.
 
-### Firestore Rules
+### Firebase Firestore Rules
 
-Your Firestore rules (located in `firestore.rules`) control access to your database. The current rules are set up correctly for the application's features and do not need to be changed to fix the upload issue.
+Your Firestore rules (located in `firestore.rules`) control access to your database and are separate from Supabase storage. They do not need to be changed for file uploads to work.

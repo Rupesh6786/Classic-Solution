@@ -1,6 +1,6 @@
+
 import { NextRequest, NextResponse } from 'next/server';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   const data = await request.formData();
@@ -17,31 +17,45 @@ export async function POST(request: NextRequest) {
     // Create a unique filename for the uploaded file
     const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const uniqueFilename = `product-images/${Date.now()}_${sanitizedFilename}`;
+    
+    // The bucket name must match the one you created in your Supabase project.
+    const BUCKET_NAME = 'product-images';
 
-    // Create a reference to the file in Firebase Storage
-    const storageRef = ref(storage, uniqueFilename);
+    // Upload the file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(uniqueFilename, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    // Upload the file
-    const snapshot = await uploadBytes(storageRef, buffer, {
-      contentType: file.type,
-    });
+    if (uploadError) {
+      // Check for specific Supabase errors if needed
+      console.error('Error uploading to Supabase Storage:', uploadError);
+      let errorMessage = uploadError.message;
+      if (uploadError.message.includes("Invalid JWT")) {
+        errorMessage = 'Authentication error with Supabase. Check your Service Role Key.'
+      } else if (uploadError.message.includes("Bucket not found")) {
+        errorMessage = `Supabase bucket '${BUCKET_NAME}' not found. Please ensure it exists and is public.`
+      }
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    }
 
     // Get the public URL of the uploaded file
-    const downloadURL = await getDownloadURL(snapshot.ref);
-
-    // Return the URL
-    return NextResponse.json({ success: true, path: downloadURL });
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(uploadData.path);
+      
+    if (!publicUrlData || !publicUrlData.publicUrl) {
+        throw new Error("Could not get public URL for the uploaded file.");
+    }
+    
+    // Return the public URL
+    return NextResponse.json({ success: true, path: publicUrlData.publicUrl });
 
   } catch (error) {
-    console.error('Error uploading to Firebase Storage:', error);
+    console.error('Error in upload route:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload file due to an unknown error.';
-    // Check for common storage errors
-    if (errorMessage.includes('storage/unauthorized') || errorMessage.includes('storage/unknown')) {
-      return NextResponse.json({ success: false, error: 'Permission denied. Please check your Firebase Storage CORS and Security Rules configuration. See README.md for instructions.' }, { status: 403 });
-    }
-    if (errorMessage.includes('storage/object-not-found')) {
-         return NextResponse.json({ success: false, error: 'Storage object not found. The bucket might not exist.' }, { status: 404 });
-    }
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
