@@ -38,7 +38,6 @@ import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import type { Product } from '@/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Image from 'next/image';
 
 const productSchema = z.object({
@@ -74,7 +73,6 @@ export function ProductFormModal({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const [urlInput, setUrlInput] = useState("");
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -85,7 +83,7 @@ export function ProductFormModal({
     },
   });
   
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "imageUrls",
   });
@@ -103,7 +101,6 @@ export function ProductFormModal({
       });
     }
     setFilesToUpload([]);
-    setUrlInput("");
   }, [productToEdit, form, isOpen]);
 
 
@@ -112,28 +109,13 @@ export function ProductFormModal({
       setFilesToUpload(Array.from(event.target.files));
     }
   };
-
-  const handleAddUrl = () => {
-    try {
-      if (!urlInput.startsWith('http')) {
-          throw new Error("Invalid URL format.");
-      }
-      append(urlInput);
-      setUrlInput("");
-    } catch (error) {
-      toast({
-        title: 'Invalid URL',
-        description: 'Please enter a valid image URL starting with http/https.',
-        variant: 'destructive'
-      });
-    }
-  };
   
   const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
     
-    // Step 1: Upload all new files to Supabase
-    const uploadedUrls: string[] = [];
+    let finalImageUrls = data.imageUrls || [];
+
+    // Step 1: Upload all new files to Supabase if any exist
     if (filesToUpload.length > 0) {
       toast({ title: 'Uploading Images...', description: `Uploading ${filesToUpload.length} image(s).` });
       const uploadPromises = filesToUpload.map(async (file) => {
@@ -160,26 +142,24 @@ export function ProductFormModal({
         }
       });
 
-      const results = await Promise.all(uploadPromises);
-      const successfulUploads = results.filter((url): url is string => url !== null);
+      const uploadedUrlResults = await Promise.all(uploadPromises);
+      const successfulUploads = uploadedUrlResults.filter((url): url is string => url !== null);
 
       if (successfulUploads.length !== filesToUpload.length) {
         toast({ title: 'Upload Incomplete', description: 'Some images failed to upload. Please try again.', variant: 'destructive' });
         setIsSubmitting(false);
         return;
       }
-      uploadedUrls.push(...successfulUploads);
+      finalImageUrls.push(...successfulUploads);
     }
     
-    const finalImageUrls = [...(data.imageUrls || []), ...uploadedUrls];
-    
-    // Step 2: Save product data to Firestore
+    // Step 2: Save product data to Firestore with all image URLs
     try {
       const productData = { 
         ...data,
+        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png'], // Add placeholder if no images
         discountPercentage: data.discountPercentage ? Number(data.discountPercentage) : null,
         updatedAt: serverTimestamp(),
-        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png']
       };
 
       if (productToEdit) {
@@ -190,8 +170,8 @@ export function ProductFormModal({
         await addDoc(collection(db, 'products'), { ...productData, createdAt: serverTimestamp() });
         toast({ title: 'Product Added', description: `${data.brand} ${data.model} has been added.` });
       }
-      onProductSaved();
-      onClose();
+      onProductSaved(); // This is a callback, for example, to refresh a product list
+      onClose(); // This closes the modal
     } catch (error) {
       console.error('Error saving product to Firestore:', error);
       toast({
@@ -215,7 +195,6 @@ export function ProductFormModal({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 py-4">
-            {/* ... Other form fields remain the same ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><FormControl><Input placeholder="e.g., LG, Samsung, Voltas" {...field} /></FormControl><FormMessage /></FormItem> )} />
               <FormField control={form.control} name="model" render={({ field }) => ( <FormItem><FormLabel>Model</FormLabel><FormControl><Input placeholder="e.g., X2000, CoolPro 150" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -277,7 +256,7 @@ export function ProductFormModal({
                       className="flex-grow"
                     />
                   </div>
-                  <ShadFormDescription className="mt-2">Select one or more images to upload when the product is saved.</ShadFormDescription>
+                  <ShadFormDescription className="mt-2">Select one or more new images to upload when the product is saved.</ShadFormDescription>
                 
                 <FormField
                     control={form.control}
@@ -286,9 +265,8 @@ export function ProductFormModal({
                         <FormItem className="mt-4">
                             {(imageUrls && imageUrls.length > 0) || filePreviews.length > 0 ? (
                                 <>
-                                    <FormLabel>Image Previews</FormLabel>
+                                    <FormLabel className="text-sm font-medium">Image Previews</FormLabel>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
-                                        {/* Existing URLs from editing */}
                                         {fields.map((field, index) => (
                                             <div key={field.id} className="relative group">
                                                 <Image
@@ -303,7 +281,6 @@ export function ProductFormModal({
                                                 </Button>
                                             </div>
                                         ))}
-                                        {/* New file previews */}
                                         {filePreviews.map((previewUrl, index) => (
                                           <div key={previewUrl} className="relative group">
                                             <Image src={previewUrl} alt={`New file preview ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square border" />
