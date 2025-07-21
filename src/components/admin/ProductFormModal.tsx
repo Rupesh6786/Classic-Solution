@@ -76,7 +76,7 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [imageUrlInput, setImageUrlInput] = useState('');
 
   const form = useForm<ProductFormValues>({
@@ -105,14 +105,14 @@ export function ProductFormModal({
         features: '', warranty: '', discountPercentage: undefined,
       });
     }
-    setFilesToUpload([]);
+    setFileToUpload(null);
     setImageUrlInput('');
   }, [productToEdit, form, isOpen]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFilesToUpload(Array.from(event.target.files));
+    if (event.target.files && event.target.files.length > 0) {
+      setFileToUpload(event.target.files[0]);
     }
   };
   
@@ -125,52 +125,48 @@ export function ProductFormModal({
     setImageUrlInput('');
   };
 
+  const handleAddFile = async () => {
+    if (!fileToUpload) {
+      toast({ title: "No file selected", description: "Please choose a file to upload.", variant: "destructive"});
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileToUpload);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `Failed to upload ${fileToUpload.name}`);
+      }
+      append(result.path);
+      setFileToUpload(null); 
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      toast({ title: "Image Added", description: "The image has been uploaded and added to the list."});
+
+    } catch (uploadError) {
+      console.error(`Upload error for ${fileToUpload.name}:`, uploadError);
+      toast({
+        title: `Upload Failed`,
+        description: (uploadError as Error).message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+
   const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
-    
-    let finalImageUrls = data.imageUrls || [];
-
-    if (filesToUpload.length > 0) {
-      toast({ title: 'Uploading Images...', description: `Uploading ${filesToUpload.length} image(s).` });
-      const uploadPromises = filesToUpload.map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          const result = await response.json();
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || `Failed to upload ${file.name}`);
-          }
-          return result.path;
-        } catch (uploadError) {
-          console.error(`Upload error for ${file.name}:`, uploadError);
-          toast({
-            title: `Upload Failed for ${file.name}`,
-            description: (uploadError as Error).message,
-            variant: 'destructive',
-          });
-          return null;
-        }
-      });
-
-      const uploadedUrlResults = await Promise.all(uploadPromises);
-      const successfulUploads = uploadedUrlResults.filter((url): url is string => url !== null);
-
-      if (successfulUploads.length !== filesToUpload.length) {
-        toast({ title: 'Upload Incomplete', description: 'Some images failed to upload. Please try again.', variant: 'destructive' });
-        setIsSubmitting(false);
-        return;
-      }
-      finalImageUrls.push(...successfulUploads);
-    }
     
     try {
       const productData = { 
         ...data,
-        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png'],
+        imageUrls: data.imageUrls && data.imageUrls.length > 0 ? data.imageUrls : ['https://placehold.co/600x400.png'],
         discountPercentage: data.discountPercentage ? Number(data.discountPercentage) : null,
         updatedAt: serverTimestamp(),
       };
@@ -196,8 +192,6 @@ export function ProductFormModal({
       setIsSubmitting(false);
     }
   };
-
-  const filePreviews = filesToUpload.map(file => URL.createObjectURL(file));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -270,16 +264,20 @@ export function ProductFormModal({
                   <TabsContent value="upload">
                     <Card>
                       <CardContent className="pt-6 space-y-2">
-                        <Label htmlFor="file-upload">Choose file(s)</Label>
-                        <Input
-                          id="file-upload"
-                          type="file"
-                          accept="image/png, image/jpeg, image/webp"
-                          onChange={handleFileChange}
-                          multiple
-                        />
+                        <div className="flex items-center gap-2">
+                            <Input
+                            id="file-upload"
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            onChange={handleFileChange}
+                            className="flex-grow"
+                            />
+                            <Button type="button" variant="outline" onClick={handleAddFile}>
+                                <Plus className="h-4 w-4 mr-2" /> Add
+                            </Button>
+                        </div>
                         <ShadFormDescription>
-                          Select one or more images from your device.
+                          Upload an image and click "Add" to include it in the list.
                         </ShadFormDescription>
                       </CardContent>
                     </Card>
@@ -287,7 +285,6 @@ export function ProductFormModal({
                   <TabsContent value="url">
                      <Card>
                       <CardContent className="pt-6 space-y-2">
-                        <Label htmlFor="url-input">Image URL</Label>
                         <div className="flex items-center gap-2">
                             <Input
                                 id="url-input"
@@ -296,8 +293,8 @@ export function ProductFormModal({
                                 value={imageUrlInput}
                                 onChange={(e) => setImageUrlInput(e.target.value)}
                             />
-                            <Button type="button" variant="outline" size="icon" onClick={handleAddUrl}>
-                                <Plus className="h-4 w-4" />
+                            <Button type="button" variant="outline" onClick={handleAddUrl}>
+                                <Plus className="h-4 w-4 mr-2" /> Add
                             </Button>
                         </div>
                          <ShadFormDescription>
@@ -313,7 +310,7 @@ export function ProductFormModal({
                     name="imageUrls"
                     render={() => (
                         <FormItem className="mt-4">
-                            {(imageUrls && imageUrls.length > 0) || filePreviews.length > 0 ? (
+                            {(imageUrls && imageUrls.length > 0) ? (
                                 <>
                                     <FormLabel className="text-sm font-medium">Image Previews</FormLabel>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2 p-4 border rounded-md">
@@ -330,12 +327,6 @@ export function ProductFormModal({
                                                     <X className="h-4 w-4" />
                                                 </Button>
                                             </div>
-                                        ))}
-                                        {filePreviews.map((previewUrl, index) => (
-                                          <div key={previewUrl} className="relative group">
-                                            <Image src={previewUrl} alt={`New file preview ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square border" />
-                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold rounded-md">Pending Upload</div>
-                                          </div>
                                         ))}
                                     </div>
                                 </>
