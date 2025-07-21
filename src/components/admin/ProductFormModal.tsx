@@ -163,12 +163,14 @@ export function ProductFormModal({
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
         toast({ title: "Image Added", description: "The image has been uploaded and added." });
-    } catch (uploadError) {
+    } catch (uploadError: any) {
         console.error(`Upload error for ${fileToUpload.name}:`, uploadError);
+        const errorMessage = uploadError.message || "An unknown error occurred during upload. Please check the browser console and Supabase bucket policies (including CORS settings in the Supabase dashboard).";
         toast({
             title: `Upload Failed`,
-            description: (uploadError as Error).message || "Please check Supabase bucket policies and CORS settings.",
+            description: errorMessage,
             variant: 'destructive',
+            duration: 9000
         });
     } finally {
         setIsUploading(false);
