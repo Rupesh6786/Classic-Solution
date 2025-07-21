@@ -45,7 +45,7 @@ export function AdminSidebar({ isMobileOpen, setMobileOpen }: AdminSidebarProps)
       )}
     >
       <div className="flex items-center justify-between px-2 py-2">
-        <div className="text-2xl font-bold text-primary">Admin Panel</div>
+        <div className="text-2xl font-bold text-primary">Classic Solution</div>
         <Button 
           variant="ghost" 
           size="icon" 

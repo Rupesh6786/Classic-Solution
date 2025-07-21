@@ -59,6 +59,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
               >
                 <MenuIcon className="h-6 w-6" />
               </Button>
+              <h1 className="text-xl font-semibold text-foreground">Admin Panel</h1>
           </div>
 
           <div className="flex items-center gap-4">
