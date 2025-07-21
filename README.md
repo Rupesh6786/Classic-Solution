@@ -14,16 +14,16 @@ You must configure Supabase correctly for image uploads in the admin panel to wo
 1.  Go to your Supabase project dashboard.
 2.  Navigate to **Project Settings** (the gear icon).
 3.  Go to the **API** section.
-4.  You will find your **Project URL** and the `service_role` **secret key**.
-5.  Create a `.env.local` file in your project's root directory (if it doesn't exist). Add your credentials like this:
+4.  You will find your **Project URL** and the `anon` **public key**.
+5.  Create a `.env` file in your project's root directory (if it doesn't exist). Add your credentials like this:
 
     ```
     NEXT_PUBLIC_SUPABASE_URL=YOUR_PROJECT_URL
-    SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
     ```
 
-    *   Replace `YOUR_PROJECT_URL` and `YOUR_SERVICE_ROLE_KEY` with the actual values from your Supabase dashboard.
-    *   **Important**: The `service_role` key grants admin access and should never be exposed on the client side. We only use it securely in our server-side API route.
+    *   Replace `YOUR_PROJECT_URL` and `YOUR_ANON_KEY` with the actual values from your Supabase dashboard.
+    *   **Important**: The `anon` key is public and safe to use in the browser, but it only works if you set up the correct policies (see Step 3).
 
 #### Step 2: Create a Storage Bucket
 
@@ -33,27 +33,33 @@ You must configure Supabase correctly for image uploads in the admin panel to wo
 4.  Make sure to check the **"Public bucket"** option. This allows the images to be viewed on your website.
 5.  Click **"Create bucket"**.
 
-#### Step 3: Configure Bucket Policies & CORS
+#### Step 3: Configure Bucket Policies & CORS (Crucial for Fixing Upload Errors!)
 
-For uploads from your website to work, you need to set up permissions (policies) and CORS.
+For uploads from your website to work, you need to set up permissions (policies) and CORS. **An empty upload error almost always means this step was missed.**
 
 1.  **CORS Configuration**:
-    *   In the Storage section, find the **"CORS configuration"** setting for your `product-images` bucket.
-    *   Set it to allow your website's domain. For development, you can use `*`, but for production, you should restrict it to your actual domain (e.g., `https://your-app.com`).
+    *   Go to **Storage** -> **Configuration**.
+    *   Scroll down to **Bucket CORS configuration**.
+    *   For the `product-images` bucket, set the **Allowed origins** to `*` for development, or your website's specific domain for production (e.g., `https://your-app.com`).
+    *   Set the **Allowed methods** to include `GET`, `POST`, `PUT`.
+    *   Click **Save**.
 
 2.  **Bucket Policies**:
     *   Navigate to **Authentication -> Policies** in your Supabase dashboard.
-    *   Find the policies for your `product-images` bucket.
-    *   Create policies to allow authenticated users to perform `insert`, `select`, `update` operations. Here's an example policy for allowing inserts (uploads) for any authenticated user:
+    *   Click **"New policy"** and select **"From scratch"**.
+    *   **Policy Name**: Give it a descriptive name, like `Allow authenticated uploads to product-images`.
+    *   **Allowed operation**: Check the **INSERT** box.
+    *   **Target roles**: Select the **authenticated** role.
+    *   **USING expression**: Leave this as the default `true`.
+    *   **WITH CHECK expression**: Set this to: `bucket_id = 'product-images'`
+    *   Click **"Review"** and then **"Save policy"**.
+    *   You will also need a policy for viewing images. Create another policy:
+        *   **Policy Name**: `Allow public read access to product-images`.
+        *   **Allowed operation**: Check the **SELECT** box.
+        *   **Target roles**: Select **anon** and **authenticated**.
+        *   **USING expression**: Set this to: `bucket_id = 'product-images'`
+        *   Click **"Review"** and **"Save policy"**.
 
-        ```sql
-        -- Policy to allow authenticated users to upload to product-images
-        CREATE POLICY "Allow authenticated uploads"
-        ON storage.objects FOR INSERT
-        TO authenticated
-        WITH CHECK (bucket_id = 'product-images');
-        ```
-    *   Ensure you have policies that allow public read access (`select`) since it's a public bucket. Supabase often creates this for you by default on public buckets.
 
 After these steps, your file uploads from the admin panel should work perfectly!
 
