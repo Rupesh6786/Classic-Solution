@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, X, Upload } from 'lucide-react';
+import { Loader2, Plus, Trash2, X, Upload, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -73,6 +73,7 @@ export function ProductFormModal({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [imageUrlInput, setImageUrlInput] = useState('');
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -101,6 +102,7 @@ export function ProductFormModal({
       });
     }
     setFilesToUpload([]);
+    setImageUrlInput('');
   }, [productToEdit, form, isOpen]);
 
 
@@ -110,6 +112,15 @@ export function ProductFormModal({
     }
   };
   
+  const handleAddUrl = () => {
+    if (!imageUrlInput.startsWith('http')) {
+      toast({ title: 'Invalid URL', description: 'Please enter a valid image URL starting with http or https.', variant: 'destructive' });
+      return;
+    }
+    append(imageUrlInput);
+    setImageUrlInput('');
+  };
+
   const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
     
@@ -245,18 +256,35 @@ export function ProductFormModal({
             
             <FormItem>
               <FormLabel>Product Images</FormLabel>
-              <div className="p-4 border rounded-md">
-                 <div className="flex items-center gap-2">
-                    <Input 
-                      id="file-upload"
-                      type="file"
-                      accept="image/png, image/jpeg, image/webp"
-                      onChange={handleFileChange}
-                      multiple
-                      className="flex-grow"
-                    />
-                  </div>
-                  <ShadFormDescription className="mt-2">Select one or more new images to upload when the product is saved.</ShadFormDescription>
+              <div className="p-4 border rounded-md space-y-4">
+                 <div>
+                    <FormLabel className="text-xs font-medium">Upload From Device</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        id="file-upload"
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleFileChange}
+                        multiple
+                        className="flex-grow"
+                      />
+                    </div>
+                    <ShadFormDescription className="mt-1">Select one or more new images to upload when the product is saved.</ShadFormDescription>
+                 </div>
+                 <div>
+                    <FormLabel className="text-xs font-medium">Add From URL</FormLabel>
+                    <div className="flex items-center gap-2">
+                        <Input 
+                            type="url"
+                            placeholder="https://example.com/image.jpg"
+                            value={imageUrlInput}
+                            onChange={(e) => setImageUrlInput(e.target.value)}
+                        />
+                        <Button type="button" variant="outline" size="icon" onClick={handleAddUrl}>
+                            <LinkIcon className="h-4 w-4" />
+                        </Button>
+                    </div>
+                 </div>
                 
                 <FormField
                     control={form.control}
