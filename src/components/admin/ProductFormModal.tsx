@@ -41,7 +41,7 @@ import type { Product } from '@/types';
 import Image from 'next/image';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Card, CardContent } from '../ui/card';
-import { supabase } from '@/lib/supabase-client'; // Use the new client-side supabase
+import { supabase } from '@/lib/supabase-client';
 
 
 const productSchema = z.object({
@@ -270,68 +270,63 @@ export function ProductFormModal({
             
             <FormItem>
                 <FormLabel>Product Images</FormLabel>
-                <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload" disabled={isUploading}>
-                      <Upload className="mr-2 h-4 w-4" /> Upload File
-                    </TabsTrigger>
-                    <TabsTrigger value="url" disabled={isUploading}>
-                      <LinkIcon className="mr-2 h-4 w-4" /> From URL
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="upload">
-                    <Card>
-                      <CardContent className="pt-6 space-y-2">
+                <Card className="bg-primary/5 p-4">
+                  <Tabs defaultValue="upload" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="upload" disabled={isUploading}>
+                         Upload File
+                      </TabsTrigger>
+                      <TabsTrigger value="url" disabled={isUploading}>
+                         From URL
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="upload" className="pt-4">
                         <div className="flex items-center gap-2">
-                            <Input
+                          <Input
                             id="file-upload"
                             type="file"
                             accept="image/png, image/jpeg, image/webp"
                             onChange={handleFileChange}
-                            className="flex-grow"
+                            className="flex-grow bg-background"
                             disabled={isUploading}
-                            />
-                            <Button type="button" variant="outline" onClick={handleAddFile} disabled={isUploading || !fileToUpload}>
-                                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Plus className="h-4 w-4 mr-2" />}
-                                Add
-                            </Button>
+                          />
+                          <Button type="button" onClick={handleAddFile} disabled={isUploading || !fileToUpload}>
+                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Plus className="mr-2 h-4 w-4" />}
+                            Add
+                          </Button>
                         </div>
-                        <ShadFormDescription>
+                        <ShadFormDescription className="mt-2 text-xs">
                           Upload an image and click "Add" to include it in the list.
                         </ShadFormDescription>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  <TabsContent value="url">
-                     <Card>
-                      <CardContent className="pt-6 space-y-2">
+                    </TabsContent>
+                    <TabsContent value="url" className="pt-4">
                         <div className="flex items-center gap-2">
-                            <Input
-                                id="url-input"
-                                type="url"
-                                placeholder="https://example.com/image.jpg"
-                                value={imageUrlInput}
-                                onChange={(e) => setImageUrlInput(e.target.value)}
-                                disabled={isUploading}
-                            />
-                            <Button type="button" variant="outline" onClick={handleAddUrl} disabled={isUploading}>
-                                <Plus className="h-4 w-4 mr-2" /> Add
-                            </Button>
+                          <Input
+                            id="url-input"
+                            type="url"
+                            placeholder="https://example.com/image.jpg"
+                            value={imageUrlInput}
+                            onChange={(e) => setImageUrlInput(e.target.value)}
+                            className="bg-background"
+                            disabled={isUploading}
+                          />
+                          <Button type="button" onClick={handleAddUrl} disabled={isUploading || !imageUrlInput}>
+                            <Plus className="mr-2 h-4 w-4" /> Add
+                          </Button>
                         </div>
-                         <ShadFormDescription>
-                           Paste an image URL and click the plus button to add it.
+                        <ShadFormDescription className="mt-2 text-xs">
+                          Paste an image URL and click "Add" to include it.
                         </ShadFormDescription>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
+                    </TabsContent>
+                  </Tabs>
+                </Card>
                 
                 <FormField
                     control={form.control}
                     name="imageUrls"
                     render={() => (
                         <FormItem className="mt-4">
-                            {(imageUrls && imageUrls.length > 0) ? (
+                            {(imageUrls && imageUrls.length > 0) && (
                                 <>
                                     <FormLabel className="text-sm font-medium">Image Previews</FormLabel>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2 p-4 border rounded-md">
@@ -351,7 +346,7 @@ export function ProductFormModal({
                                         ))}
                                     </div>
                                 </>
-                            ) : null}
+                            )}
                             <FormMessage />
                         </FormItem>
                     )}
