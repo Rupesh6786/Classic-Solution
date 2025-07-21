@@ -39,6 +39,10 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import type { Product } from '@/types';
 import Image from 'next/image';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Card, CardContent } from '../ui/card';
+import { Label } from '../ui/label';
+
 
 const productSchema = z.object({
   brand: z.string().min(2, { message: "Brand must be at least 2 characters." }),
@@ -126,7 +130,6 @@ export function ProductFormModal({
     
     let finalImageUrls = data.imageUrls || [];
 
-    // Step 1: Upload all new files to Supabase if any exist
     if (filesToUpload.length > 0) {
       toast({ title: 'Uploading Images...', description: `Uploading ${filesToUpload.length} image(s).` });
       const uploadPromises = filesToUpload.map(async (file) => {
@@ -164,11 +167,10 @@ export function ProductFormModal({
       finalImageUrls.push(...successfulUploads);
     }
     
-    // Step 2: Save product data to Firestore with all image URLs
     try {
       const productData = { 
         ...data,
-        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png'], // Add placeholder if no images
+        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png'],
         discountPercentage: data.discountPercentage ? Number(data.discountPercentage) : null,
         updatedAt: serverTimestamp(),
       };
@@ -181,8 +183,8 @@ export function ProductFormModal({
         await addDoc(collection(db, 'products'), { ...productData, createdAt: serverTimestamp() });
         toast({ title: 'Product Added', description: `${data.brand} ${data.model} has been added.` });
       }
-      onProductSaved(); // This is a callback, for example, to refresh a product list
-      onClose(); // This closes the modal
+      onProductSaved();
+      onClose();
     } catch (error) {
       console.error('Error saving product to Firestore:', error);
       toast({
@@ -255,36 +257,56 @@ export function ProductFormModal({
             <FormField control={form.control} name="features" render={({ field }) => ( <FormItem><FormLabel>Features (Optional)</FormLabel><FormControl><Textarea placeholder="Comma-separated features..." {...field} rows={3} /></FormControl><ShadFormDescription>Enter key features separated by commas.</ShadFormDescription><FormMessage /></FormItem> )} />
             
             <FormItem>
-              <FormLabel>Product Images</FormLabel>
-              <div className="p-4 border rounded-md space-y-4">
-                 <div>
-                    <FormLabel className="text-xs font-medium">Upload From Device</FormLabel>
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        id="file-upload"
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={handleFileChange}
-                        multiple
-                        className="flex-grow"
-                      />
-                    </div>
-                    <ShadFormDescription className="mt-1">Select one or more new images to upload when the product is saved.</ShadFormDescription>
-                 </div>
-                 <div>
-                    <FormLabel className="text-xs font-medium">Add From URL</FormLabel>
-                    <div className="flex items-center gap-2">
-                        <Input 
-                            type="url"
-                            placeholder="https://example.com/image.jpg"
-                            value={imageUrlInput}
-                            onChange={(e) => setImageUrlInput(e.target.value)}
+                <FormLabel>Product Images</FormLabel>
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="upload">
+                      <Upload className="mr-2 h-4 w-4" /> Upload File
+                    </TabsTrigger>
+                    <TabsTrigger value="url">
+                      <LinkIcon className="mr-2 h-4 w-4" /> From URL
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="upload">
+                    <Card>
+                      <CardContent className="pt-6 space-y-2">
+                        <Label htmlFor="file-upload">Choose file(s)</Label>
+                        <Input
+                          id="file-upload"
+                          type="file"
+                          accept="image/png, image/jpeg, image/webp"
+                          onChange={handleFileChange}
+                          multiple
                         />
-                        <Button type="button" variant="outline" size="icon" onClick={handleAddUrl}>
-                            <LinkIcon className="h-4 w-4" />
-                        </Button>
-                    </div>
-                 </div>
+                        <ShadFormDescription>
+                          Select one or more images from your device.
+                        </ShadFormDescription>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  <TabsContent value="url">
+                     <Card>
+                      <CardContent className="pt-6 space-y-2">
+                        <Label htmlFor="url-input">Image URL</Label>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                id="url-input"
+                                type="url"
+                                placeholder="https://example.com/image.jpg"
+                                value={imageUrlInput}
+                                onChange={(e) => setImageUrlInput(e.target.value)}
+                            />
+                            <Button type="button" variant="outline" size="icon" onClick={handleAddUrl}>
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </div>
+                         <ShadFormDescription>
+                           Paste an image URL and click the plus button to add it.
+                        </ShadFormDescription>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
                 
                 <FormField
                     control={form.control}
@@ -294,7 +316,7 @@ export function ProductFormModal({
                             {(imageUrls && imageUrls.length > 0) || filePreviews.length > 0 ? (
                                 <>
                                     <FormLabel className="text-sm font-medium">Image Previews</FormLabel>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2 p-4 border rounded-md">
                                         {fields.map((field, index) => (
                                             <div key={field.id} className="relative group">
                                                 <Image
@@ -322,7 +344,6 @@ export function ProductFormModal({
                         </FormItem>
                     )}
                 />
-              </div>
             </FormItem>
             
             <DialogFooter className="pt-4">
