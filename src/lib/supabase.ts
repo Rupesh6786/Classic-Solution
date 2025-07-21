@@ -6,14 +6,12 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   // This check is primarily for the server-side part.
-  // The client-side part might get initialized without the service key,
-  // but operations like uploads in API routes will fail safely.
-  console.warn("Supabase URL or Service Role Key is not set in environment variables.");
+  console.warn("Supabase URL or Service Role Key is not set in environment variables for the server-side client.");
 }
 
-// The service_role key has super admin rights and should only be used on the server.
+// This client uses the service_role key and should ONLY be used on the server (e.g., in API routes or server actions).
 // Never expose it on the client side.
-export const supabase = createClient(
+export const supabaseAdmin = createClient(
     supabaseUrl || '', 
     supabaseServiceRoleKey || ''
 );

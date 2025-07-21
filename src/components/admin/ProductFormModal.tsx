@@ -41,7 +41,7 @@ import type { Product } from '@/types';
 import Image from 'next/image';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Card, CardContent } from '../ui/card';
-import { Label } from '../ui/label';
+import { supabase } from '@/lib/supabase-client'; // Use the new client-side supabase
 
 
 const productSchema = z.object({
@@ -78,6 +78,8 @@ export function ProductFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [imageUrlInput, setImageUrlInput] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -130,32 +132,46 @@ export function ProductFormModal({
       toast({ title: "No file selected", description: "Please choose a file to upload.", variant: "destructive"});
       return;
     }
+    setIsUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-
+    const sanitizedFilename = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uniqueFilePath = `${Date.now()}_${sanitizedFilename}`;
+    const BUCKET_NAME = 'product-images';
+    
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || `Failed to upload ${fileToUpload.name}`);
-      }
-      append(result.path);
-      setFileToUpload(null); 
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      toast({ title: "Image Added", description: "The image has been uploaded and added to the list."});
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(uniqueFilePath, fileToUpload, {
+                contentType: fileToUpload.type,
+                upsert: false
+            });
 
+        if (uploadError) {
+            throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(uploadData.path);
+        
+        if (!publicUrlData || !publicUrlData.publicUrl) {
+            throw new Error("Could not get public URL for the uploaded file.");
+        }
+        
+        append(publicUrlData.publicUrl);
+        setFileToUpload(null);
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        toast({ title: "Image Added", description: "The image has been uploaded and added." });
     } catch (uploadError) {
-      console.error(`Upload error for ${fileToUpload.name}:`, uploadError);
-      toast({
-        title: `Upload Failed`,
-        description: (uploadError as Error).message,
-        variant: 'destructive',
-      });
+        console.error(`Upload error for ${fileToUpload.name}:`, uploadError);
+        toast({
+            title: `Upload Failed`,
+            description: (uploadError as Error).message || "Please check Supabase bucket policies and CORS settings.",
+            variant: 'destructive',
+        });
+    } finally {
+        setIsUploading(false);
     }
   };
 
@@ -254,10 +270,10 @@ export function ProductFormModal({
                 <FormLabel>Product Images</FormLabel>
                 <Tabs defaultValue="upload" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload">
+                    <TabsTrigger value="upload" disabled={isUploading}>
                       <Upload className="mr-2 h-4 w-4" /> Upload File
                     </TabsTrigger>
-                    <TabsTrigger value="url">
+                    <TabsTrigger value="url" disabled={isUploading}>
                       <LinkIcon className="mr-2 h-4 w-4" /> From URL
                     </TabsTrigger>
                   </TabsList>
@@ -271,9 +287,11 @@ export function ProductFormModal({
                             accept="image/png, image/jpeg, image/webp"
                             onChange={handleFileChange}
                             className="flex-grow"
+                            disabled={isUploading}
                             />
-                            <Button type="button" variant="outline" onClick={handleAddFile}>
-                                <Plus className="h-4 w-4 mr-2" /> Add
+                            <Button type="button" variant="outline" onClick={handleAddFile} disabled={isUploading || !fileToUpload}>
+                                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Plus className="h-4 w-4 mr-2" />}
+                                Add
                             </Button>
                         </div>
                         <ShadFormDescription>
@@ -292,8 +310,9 @@ export function ProductFormModal({
                                 placeholder="https://example.com/image.jpg"
                                 value={imageUrlInput}
                                 onChange={(e) => setImageUrlInput(e.target.value)}
+                                disabled={isUploading}
                             />
-                            <Button type="button" variant="outline" onClick={handleAddUrl}>
+                            <Button type="button" variant="outline" onClick={handleAddUrl} disabled={isUploading}>
                                 <Plus className="h-4 w-4 mr-2" /> Add
                             </Button>
                         </div>
@@ -339,8 +358,8 @@ export function ProductFormModal({
             
             <DialogFooter className="pt-4">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={isSubmitting || isUploading} className="min-w-[120px]">
+                {(isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {productToEdit ? 'Save Changes' : 'Add Product'}
               </Button>
             </DialogFooter>
