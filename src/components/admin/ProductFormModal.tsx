@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -32,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, X, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -49,7 +50,7 @@ const productSchema = z.object({
   condition: z.enum(['New', 'Used'], { required_error: 'Condition is required.' }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }).max(1000, {message: "Description cannot exceed 1000 characters."}),
   category: z.string().min(3, { message: "Category must be at least 3 characters." }),
-  imageUrls: z.array(z.string().min(1, { message: "Image path cannot be empty." })).optional(),
+  imageUrls: z.array(z.string().url({ message: "Please enter a valid URL." })).optional(),
   features: z.string().optional(),
   warranty: z.string().optional(),
   discountPercentage: z.coerce.number().int().min(0).max(99).optional().or(z.literal('')),
@@ -72,8 +73,7 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [urlInput, setUrlInput] = useState("");
 
   const form = useForm<ProductFormValues>({
@@ -85,7 +85,7 @@ export function ProductFormModal({
     },
   });
   
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "imageUrls",
   });
@@ -102,61 +102,20 @@ export function ProductFormModal({
         features: '', warranty: '', discountPercentage: undefined,
       });
     }
-    setSelectedFile(null);
+    setFilesToUpload([]);
     setUrlInput("");
   }, [productToEdit, form, isOpen]);
 
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      toast({ title: 'No File Selected', description: 'Please choose a file to upload.', variant: 'destructive' });
-      return;
-    }
-    setIsUploading(true);
-    
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'File upload failed');
-      }
-
-      append(result.path);
-      setSelectedFile(null);
-
-      toast({
-        title: 'Upload Successful',
-        description: 'Image has been added to the list.',
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: 'Upload Error',
-        description: error instanceof Error ? error.message : 'An unknown error occurred during upload.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-  
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files?.[0]) {
-      setSelectedFile(event.target.files[0]);
+    if (event.target.files) {
+      setFilesToUpload(Array.from(event.target.files));
     }
   };
 
   const handleAddUrl = () => {
     try {
-      if (!urlInput.startsWith('http') || !urlInput.includes('.')) {
+      if (!urlInput.startsWith('http')) {
           throw new Error("Invalid URL format.");
       }
       append(urlInput);
@@ -172,12 +131,55 @@ export function ProductFormModal({
   
   const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
+    
+    // Step 1: Upload all new files to Supabase
+    const uploadedUrls: string[] = [];
+    if (filesToUpload.length > 0) {
+      toast({ title: 'Uploading Images...', description: `Uploading ${filesToUpload.length} image(s).` });
+      const uploadPromises = filesToUpload.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || `Failed to upload ${file.name}`);
+          }
+          return result.path;
+        } catch (uploadError) {
+          console.error(`Upload error for ${file.name}:`, uploadError);
+          toast({
+            title: `Upload Failed for ${file.name}`,
+            description: (uploadError as Error).message,
+            variant: 'destructive',
+          });
+          return null;
+        }
+      });
+
+      const results = await Promise.all(uploadPromises);
+      const successfulUploads = results.filter((url): url is string => url !== null);
+
+      if (successfulUploads.length !== filesToUpload.length) {
+        toast({ title: 'Upload Incomplete', description: 'Some images failed to upload. Please try again.', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+      }
+      uploadedUrls.push(...successfulUploads);
+    }
+    
+    const finalImageUrls = [...(data.imageUrls || []), ...uploadedUrls];
+    
+    // Step 2: Save product data to Firestore
     try {
       const productData = { 
         ...data,
         discountPercentage: data.discountPercentage ? Number(data.discountPercentage) : null,
         updatedAt: serverTimestamp(),
-        imageUrls: (data.imageUrls && data.imageUrls.length > 0) ? data.imageUrls : ['https://placehold.co/600x400.png']
+        imageUrls: finalImageUrls.length > 0 ? finalImageUrls : ['https://placehold.co/600x400.png']
       };
 
       if (productToEdit) {
@@ -191,9 +193,9 @@ export function ProductFormModal({
       onProductSaved();
       onClose();
     } catch (error) {
-      console.error('Error saving product:', error);
+      console.error('Error saving product to Firestore:', error);
       toast({
-        title: 'Error',
+        title: 'Firestore Error',
         description: `Could not save product. ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: 'destructive',
       });
@@ -201,6 +203,8 @@ export function ProductFormModal({
       setIsSubmitting(false);
     }
   };
+
+  const filePreviews = filesToUpload.map(file => URL.createObjectURL(file));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -211,6 +215,7 @@ export function ProductFormModal({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 py-4">
+            {/* ... Other form fields remain the same ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><FormControl><Input placeholder="e.g., LG, Samsung, Voltas" {...field} /></FormControl><FormMessage /></FormItem> )} />
               <FormField control={form.control} name="model" render={({ field }) => ( <FormItem><FormLabel>Model</FormLabel><FormControl><Input placeholder="e.g., X2000, CoolPro 150" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -262,50 +267,28 @@ export function ProductFormModal({
             <FormItem>
               <FormLabel>Product Images</FormLabel>
               <div className="p-4 border rounded-md">
-                <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload">Upload File</TabsTrigger>
-                    <TabsTrigger value="url">From URL</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="upload" className="pt-4">
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        id="file-upload"
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={handleFileChange}
-                        className="flex-grow"
-                      />
-                      <Button type="button" onClick={handleUpload} disabled={!selectedFile || isUploading}>
-                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Plus className="mr-2 h-4 w-4" />} Add
-                      </Button>
-                    </div>
-                    <ShadFormDescription className="mt-2">Upload an image and click "Add" to include it in the list.</ShadFormDescription>
-                  </TabsContent>
-                  <TabsContent value="url" className="pt-4">
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        placeholder="https://example.com/image.png"
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                      />
-                       <Button type="button" onClick={handleAddUrl} disabled={!urlInput}>
-                        <Plus className="mr-2 h-4 w-4" /> Add
-                      </Button>
-                    </div>
-                    <ShadFormDescription className="mt-2">Paste an image URL and click "Add".</ShadFormDescription>
-                  </TabsContent>
-                </Tabs>
-
+                 <div className="flex items-center gap-2">
+                    <Input 
+                      id="file-upload"
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      onChange={handleFileChange}
+                      multiple
+                      className="flex-grow"
+                    />
+                  </div>
+                  <ShadFormDescription className="mt-2">Select one or more images to upload when the product is saved.</ShadFormDescription>
+                
                 <FormField
                     control={form.control}
                     name="imageUrls"
                     render={() => (
                         <FormItem className="mt-4">
-                            {fields.length > 0 && (
+                            {(imageUrls && imageUrls.length > 0) || filePreviews.length > 0 ? (
                                 <>
                                     <FormLabel>Image Previews</FormLabel>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
+                                        {/* Existing URLs from editing */}
                                         {fields.map((field, index) => (
                                             <div key={field.id} className="relative group">
                                                 <Image
@@ -315,20 +298,21 @@ export function ProductFormModal({
                                                     height={150}
                                                     className="rounded-md object-cover aspect-square border"
                                                 />
-                                                <Button
-                                                    type="button"
-                                                    variant="destructive"
-                                                    size="icon"
-                                                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={() => remove(index)}
-                                                >
+                                                <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => remove(index)}>
                                                     <X className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         ))}
+                                        {/* New file previews */}
+                                        {filePreviews.map((previewUrl, index) => (
+                                          <div key={previewUrl} className="relative group">
+                                            <Image src={previewUrl} alt={`New file preview ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square border" />
+                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold rounded-md">Pending Upload</div>
+                                          </div>
+                                        ))}
                                     </div>
                                 </>
-                            )}
+                            ) : null}
                             <FormMessage />
                         </FormItem>
                     )}
