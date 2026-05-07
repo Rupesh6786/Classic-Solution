@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
+  FormDescription as ShadFormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -94,16 +94,21 @@ export function ServiceBookingForm({ availableServices, initialServiceType }: Se
       return "e.g., 500";
     }
     const selectedService = availableServices.find(s => s.name === watchedServiceType);
-    if (selectedService && selectedService.price) {
-      return `${selectedService.price}`;
+    if (selectedService) {
+        if (selectedService.minPrice) return `${selectedService.minPrice}`;
+        if (selectedService.price) return `${selectedService.price}`;
     }
     return "e.g., 500";
   }, [watchedServiceType, availableServices]);
   
   useEffect(() => {
     const selectedService = availableServices.find(s => s.name === watchedServiceType);
-    if (selectedService && selectedService.price) {
-      form.setValue("paymentAmount", selectedService.price);
+    if (selectedService) {
+        if (selectedService.minPrice) {
+            form.setValue("paymentAmount", selectedService.minPrice);
+        } else if (selectedService.price) {
+            form.setValue("paymentAmount", selectedService.price);
+        }
     }
   }, [watchedServiceType, availableServices, form]);
 
@@ -370,9 +375,9 @@ export function ServiceBookingForm({ availableServices, initialServiceType }: Se
                     disabled={isSubmitting}
                   />
                 </FormControl>
-                <FormDescription>
-                  This is the amount you will be charged for the service.
-                </FormDescription>
+                <ShadFormDescription>
+                  This is the initial payment for the service.
+                </ShadFormDescription>
                 <FormMessage />
               </FormItem>
             )}

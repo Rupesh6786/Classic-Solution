@@ -87,6 +87,26 @@ export function ServicesPageClient() {
     bookingFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const renderPriceDisplay = (service: Service) => {
+      if (service.minPrice && service.maxPrice) {
+          return (
+              <div className="flex items-center gap-1">
+                  <IndianRupee className="w-4 h-4"/>
+                  <span>{service.minPrice.toLocaleString()} - {service.maxPrice.toLocaleString()}</span>
+              </div>
+          );
+      }
+      if (service.price) {
+          return (
+              <div className="flex items-center gap-1">
+                  <IndianRupee className="w-4 h-4"/>
+                  <span>{service.price.toLocaleString()}</span>
+              </div>
+          );
+      }
+      return <div />;
+  };
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12">
@@ -130,12 +150,7 @@ export function ServicesPageClient() {
                     <CardDescription>{service.description}</CardDescription>
                 </CardContent>
                 <CardContent className="flex justify-between items-center text-sm text-accent font-medium pt-4">
-                    {service.price ? (
-                        <div className="flex items-center gap-1">
-                            <IndianRupee className="w-4 h-4"/>
-                            <span>{service.price.toLocaleString()}</span>
-                        </div>
-                    ) : <div />}
+                    {renderPriceDisplay(service)}
                      {service.duration && (
                         <div className="flex items-center gap-1">
                             <Clock className="w-4 h-4"/>

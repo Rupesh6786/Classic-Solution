@@ -39,8 +39,18 @@ const serviceSchema = z.object({
   category: z.string().min(3, { message: "Category must be at least 3 characters." }),
   status: z.enum(['Active', 'Inactive'], { required_error: 'Status is required.'}),
   price: z.coerce.number().positive({ message: "Price must be a positive number." }).optional().or(z.literal('')),
+  minPrice: z.coerce.number().positive({ message: "Min price must be a positive number." }).optional().or(z.literal('')),
+  maxPrice: z.coerce.number().positive({ message: "Max price must be a positive number." }).optional().or(z.literal('')),
   duration: z.string().optional(),
   icon: z.string().min(2, { message: "An icon name from lucide-react is required." }),
+}).refine(data => {
+    if (data.minPrice && data.maxPrice) {
+        return Number(data.maxPrice) >= Number(data.minPrice);
+    }
+    return true;
+}, {
+    message: "Max price must be greater than or equal to min price",
+    path: ["maxPrice"]
 });
 
 type ServiceFormValues = z.infer<typeof serviceSchema>;
@@ -69,6 +79,8 @@ export function ServiceFormModal({
       category: '',
       status: 'Active',
       price: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
       duration: '',
       icon: 'Wrench',
     },
@@ -82,6 +94,8 @@ export function ServiceFormModal({
         category: serviceToEdit.category || '',
         status: serviceToEdit.status || 'Active',
         price: serviceToEdit.price || undefined,
+        minPrice: serviceToEdit.minPrice || undefined,
+        maxPrice: serviceToEdit.maxPrice || undefined,
         duration: serviceToEdit.duration || '',
         icon: serviceToEdit.icon || 'Wrench',
       });
@@ -92,6 +106,8 @@ export function ServiceFormModal({
         category: '',
         status: 'Active',
         price: undefined,
+        minPrice: undefined,
+        maxPrice: undefined,
         duration: '',
         icon: 'Wrench',
       });
@@ -104,6 +120,8 @@ export function ServiceFormModal({
       const serviceData = {
         ...data,
         price: data.price ? Number(data.price) : null,
+        minPrice: data.minPrice ? Number(data.minPrice) : null,
+        maxPrice: data.maxPrice ? Number(data.maxPrice) : null,
         duration: data.duration || null,
         updatedAt: serverTimestamp(),
       };
@@ -181,18 +199,47 @@ export function ServiceFormModal({
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border p-4 rounded-lg bg-muted/20">
+               <div className="lg:col-span-3 mb-2">
+                 <h4 className="text-sm font-semibold">Pricing Configuration</h4>
+                 <p className="text-xs text-muted-foreground">Set a fixed price or a price range.</p>
+               </div>
               <FormField
                 control={form.control}
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (₹, Optional)</FormLabel>
+                    <FormLabel>Fixed Price (₹)</FormLabel>
                     <FormControl><Input type="number" placeholder="e.g., 500" {...field} value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="minPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Min Price (₹)</FormLabel>
+                    <FormControl><Input type="number" placeholder="e.g., 500" {...field} value={field.value ?? ''} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="maxPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max Price (₹)</FormLabel>
+                    <FormControl><Input type="number" placeholder="e.g., 800" {...field} value={field.value ?? ''} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="duration"
@@ -221,20 +268,18 @@ export function ServiceFormModal({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <FormField
+               <FormField
                 control={form.control}
                 name="icon"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Icon Name</FormLabel>
-                    <FormControl><Input placeholder="e.g., Wrench (from lucide-react)" {...field} /></FormControl>
-                    <ShadFormDescription>This icon is shown on the public services page. Use any valid name from Lucide.</ShadFormDescription>
+                    <FormControl><Input placeholder="e.g., Wrench" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
             
             <DialogFooter className="pt-4">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>

@@ -28,6 +28,8 @@ export interface Service {
   category: string;
   status: 'Active' | 'Inactive';
   price?: number;
+  minPrice?: number;
+  maxPrice?: number;
   duration?: string;
   icon?: string;
   createdAt?: Timestamp | Date;

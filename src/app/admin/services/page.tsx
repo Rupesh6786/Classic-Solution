@@ -223,6 +223,13 @@ export default function AdminServicesPage() {
     }
   };
 
+  const renderPrice = (service: Service) => {
+      if (service.minPrice && service.maxPrice) {
+          return `₹${service.minPrice.toLocaleString()} - ₹${service.maxPrice.toLocaleString()}`;
+      }
+      return service.price ? `₹${service.price.toLocaleString()}` : 'N/A';
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -269,7 +276,7 @@ export default function AdminServicesPage() {
                       <TableHead>Icon</TableHead>
                       <TableHead onClick={() => requestSort('name')} className="cursor-pointer hover:bg-muted/50 whitespace-nowrap">Service Name {getSortIndicator('name')}</TableHead>
                       <TableHead onClick={() => requestSort('category')} className="cursor-pointer hover:bg-muted/50 whitespace-nowrap">Category {getSortIndicator('category')}</TableHead>
-                      <TableHead onClick={() => requestSort('price')} className="cursor-pointer hover:bg-muted/50 whitespace-nowrap text-right">Price (₹) {getSortIndicator('price')}</TableHead>
+                      <TableHead className="whitespace-nowrap text-right">Price (₹)</TableHead>
                       <TableHead onClick={() => requestSort('duration')} className="cursor-pointer hover:bg-muted/50 whitespace-nowrap">Duration {getSortIndicator('duration')}</TableHead>
                       <TableHead onClick={() => requestSort('updatedAt')} className="cursor-pointer hover:bg-muted/50 whitespace-nowrap">Last Updated {getSortIndicator('updatedAt')}</TableHead>
                       <TableHead>Status</TableHead>
@@ -284,7 +291,7 @@ export default function AdminServicesPage() {
                         <TableCell><IconComponent className="w-5 h-5 text-muted-foreground" /></TableCell>
                         <TableCell className="font-medium">{service.name}</TableCell>
                         <TableCell>{service.category}</TableCell>
-                        <TableCell className="text-right">{service.price ? service.price.toLocaleString() : 'N/A'}</TableCell>
+                        <TableCell className="text-right">{renderPrice(service)}</TableCell>
                         <TableCell>{service.duration || 'N/A'}</TableCell>
                         <TableCell>{service.updatedAt ? format(service.updatedAt as Date, "MMM d, yyyy") : 'N/A'}</TableCell>
                         <TableCell>
@@ -331,7 +338,7 @@ export default function AdminServicesPage() {
                           <p className="text-muted-foreground line-clamp-2">{service.description}</p>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t">
                                 <div className="font-semibold text-muted-foreground flex items-center gap-1.5"><IndianRupee className="h-4 w-4"/>Price</div>
-                                <span>{service.price ? `₹${service.price.toLocaleString()}` : 'N/A'}</span>
+                                <span>{renderPrice(service)}</span>
                                 <div className="font-semibold text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4"/>Duration</div>
                                 <span>{service.duration || 'N/A'}</span>
                             </div>
