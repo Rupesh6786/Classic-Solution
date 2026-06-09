@@ -125,37 +125,6 @@ Available services include:
 
 ---
 
-## 📂 Project Structure
-
-```bash
-classic-solution/
-│
-├── public/
-│   ├── assets/
-│   ├── images/
-│   └── icons/
-│
-├── src/
-│   ├── components/
-│   ├── pages/
-│   ├── services/
-│   ├── hooks/
-│   ├── utils/
-│   └── styles/
-│
-├── backend/
-│   ├── routes/
-│   ├── controllers/
-│   ├── models/
-│   └── middleware/
-│
-├── package.json
-├── netlify.toml
-└── README.md
-```
-
----
-
 ## 🌟 Future Enhancements
 
 * Online Payments
